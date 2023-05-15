@@ -34,48 +34,62 @@
 # Объяснить смысл произведенных действий. Предоставить результаты замера до и после.
 # Просьба для любых текстовых файлов использовать кодировку utf8.
 # Результат прислать письмом на адрес office@ptmk.ru , в теме обязательно указать ФИО.
-
+import sys
 from mysql.connector import connect, Error
+DATABASE_1 = "MyDB"
+TABLE_NAME = 'Person'
 
-try:
-    with connect(
+
+def getConnection ():
+    return connect(
         host="localhost",
-        user=input("Имя пользователя: "),
-        password=input("Пароль: ")
-    ) as connection:
+        user="root",
+        password="password"
+        )
+
+def createDatabase ():
+    with getConnection() as connection:
         print(connection)
-    # пункт 1 Создание таблицы с полями представляющими ФИО, дату рождения, пол.
-        database_1 = input("Введите название базы данных: ")
-        create_db_query1 = f"""CREATE DATABASE {database_1}"""
-        with connection.cursor() as cursor:
-            cursor.execute(create_db_query1)
-        connection.commit()
-except Error as e:
-    print(e)
-print("Подключимся к созданной базе данных")
-try:
-    with connect(
-        host="localhost",
-        user=input("Имя пользователя: "),
-        password=input("Пароль: "),
-        database=database_1
-    ) as connection:
-        print(connection)
-        tab = input("Введите название таблицы: ")
-        create_db_query1 = f"""CREATE TABLE {tab} (
-                                id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                                name VARCHAR(50) NOT NULL,
-                                year VARCHAR(20) NOT NULL,
-                                gender CHAR(1) NOT NULL
-                                );"""
-        with connection.cursor() as cursor:
-            cursor.execute(create_db_query1)
-        connection.commit()
+        # пункт 1 Создание таблицы с полями представляющими ФИО, дату рождения, пол.
+        create_db_query1 = f"""
+        DROP DATABASE IF EXISTS {DATABASE_1};
+        CREATE DATABASE {DATABASE_1}"""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(create_db_query1)
+        except Error as err:
+            print(f"Ошибка MySQL при создании базы данных {DATABASE_1}: {err}")
+
+argv = sys.argv[1:]
+
+len = len(argv)
+if len == 0 or len > 4:
+    print ('Неправильный формат параметров')
+    quit()
+
+param1 = argv[0]
+if param1 == "1":
+    createDatabase()
+    
+    try:
+        with getConnection () as connection:
+            print(connection)
+            tab = input("Введите название таблицы: ")
+            create_db_query1 = f"""USE {DATABASE_1};
+                                    CREATE TABLE {tab} (
+                                        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                                        name VARCHAR(50) NOT NULL,
+                                        year date NOT NULL,
+                                        gender CHAR(1) NOT NULL
+                                        );"""
+            with connection.cursor() as cursor:
+                cursor.execute(create_db_query1)
+            connection.commit()
 
     # пункт 2 Создание записи
 
         while True:
-            your_name = input("Введите ФИО (при нажатии Enter без ввода данных программа перейдет к следующему пункту и заполнению автоматически 1000000 строк): ")
+            your_name = input("Введите ФИО: ")
             if your_name != "":
                 year_born = input("Введите дату рождения в формате 0000-00-00: ")
                 your_sex = input("Введите ваш пол (M / F): ")
@@ -181,6 +195,6 @@ try:
         connection.commit()
         # результаты замера времени выполнения запроса до и после индексации представлены на скриншотах во вложении к письму
 
-except Error as e:
-    print(e)
+    except Error as e:
+        print(e)
 
