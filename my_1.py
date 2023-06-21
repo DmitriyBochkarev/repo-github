@@ -33,21 +33,26 @@
 # 6. Произвести определенные манипуляции над базой данных для ускорения запроса из пункта 5. Убедиться, что время исполнения уменьшилось.
 # Объяснить смысл произведенных действий. Предоставить результаты замера до и после.
 # Просьба для любых текстовых файлов использовать кодировку utf8.
-# Результат прислать письмом на адрес office@ptmk.ru , в теме обязательно указать ФИО.
+
 import sys
+import mysql
 from mysql.connector import connect, Error
+import random
+from datetime import datetime
+
 DATABASE_1 = "MyDB"
 TABLE_NAME = 'Person'
 
 
-def getConnection ():
+def getConnection():
     return connect(
         host="localhost",
         user="root",
         password="password"
-        )
+    )
 
-def createDatabase ():
+
+def createDatabase():
     with getConnection() as connection:
         print(connection)
         # пункт 1 Создание таблицы с полями представляющими ФИО, дату рождения, пол.
@@ -60,141 +65,252 @@ def createDatabase ():
         except Error as err:
             print(f"Ошибка MySQL при создании базы данных {DATABASE_1}: {err}")
 
-argv = sys.argv[1:]
 
-len = len(argv)
-if len == 0 or len > 4:
-    print ('Неправильный формат параметров')
-    quit()
-
-param1 = argv[0]
-if param1 == "1":
+def createTable():
     createDatabase()
-    
-    try:
-        with getConnection () as connection:
-            print(connection)
-            tab = input("Введите название таблицы: ")
-            create_db_query1 = f"""USE {DATABASE_1};
-                                    CREATE TABLE {tab} (
-                                        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                                        name VARCHAR(50) NOT NULL,
-                                        year date NOT NULL,
-                                        gender CHAR(1) NOT NULL
-                                        );"""
+    with getConnection() as connection:
+        print(connection)
+        create_db_query1 = f"""CREATE TABLE {TABLE_NAME} (
+                                    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+                                    name VARCHAR(50) NOT NULL,
+                                    dob date NOT NULL,
+                                    gender CHAR(1) NOT NULL
+                                    );"""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"""USE {DATABASE_1};""")
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при добавлении записи в таблице {TABLE_NAME}: {err}")
+        try:
             with connection.cursor() as cursor:
                 cursor.execute(create_db_query1)
             connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при создании таблицы {TABLE_NAME}: {err}")
+        print(f'База данных {DATABASE_1} создана заново.')
+        print(f'Таблица {TABLE_NAME} создана.')
 
-    # пункт 2 Создание записи
 
-        while True:
-            your_name = input("Введите ФИО: ")
-            if your_name != "":
-                year_born = input("Введите дату рождения в формате 0000-00-00: ")
-                your_sex = input("Введите ваш пол (M / F): ")
-                create_db_query2 = f"""INSERT INTO {tab} (name, year, gender) VALUES (
-                                        "{your_name}",
-                                        "{year_born}",
-                                        "{your_sex}"
+def insertRecord(name, dob, gender):
+    # 2. Создание записи.
+    with getConnection() as connection:
+        print(connection)
+        insert_db_query = f"""INSERT INTO {TABLE_NAME} (name, dob, gender) VALUES (
+                                        "{name}",
+                                        "{dob}",
+                                        "{gender}"
                                         );"""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"""USE {DATABASE_1};""")
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при выборе базы данных {DATABASE_1}: {err}")
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(insert_db_query)
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при добавлении записи в таблице {TABLE_NAME}: {err}")
+        print('Запись создана.')
+
+
+
+def selectRecords():
+    # 3. Вывод всех строк с уникальным значением ФИО+дата, отсортированным по ФИО , вывести ФИО, Дату рождения, пол, кол-во полных лет.
+
+    with getConnection() as connection:
+        print(connection)
+        select_db_query = f"""/* Имя, ДwР, пол, кол-во полных лет (внешняя таблица) */
+                            SELECT Person.name, Person.dob, DATE_FORMAT(FROM_DAYS(DATEDIFF(now(),Person.dob)), '%Y')+0 AS age, Person.gender
+                                FROM Person 
+                                INNER JOIN (SELECT DISTINCT name, dob FROM Person)dt
+                                ON Person.name = dt.name and Person.dob = dt.dob
+                                ORDER BY Person.name
+                            """
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"""USE {DATABASE_1};""")
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при выборе базы данных {DATABASE_1}: {err}")
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(select_db_query)
+                result = cursor.fetchall()
+                for row in result:
+                    print(row)
+        except mysql.connector.Error as err:
+            print(f"Ошибка MySQL при выводе записей из таблицы {TABLE_NAME}: {err}")
+        print('Выборка завершена.')
+
+
+def generateMillionRandomRecords():
+    surnames = ['ivanov', 'petrov', 'sidorov', 'bochkarev', 'grachev']
+    names = ['vasya', 'petya', 'masha', 'dasha', 'ivan']
+    gender_id = ["M", "F"]
+
+    for i in range(1000000):
+        name = surnames[random.randint(0, len(surnames) - 1)] + " " + names[random.randint(0, len(names) - 1)]
+        dob = str(random.randint(1900, 2022)) + "." + str(random.randint(1, 12)) + "." + str(random.randint(1, 28))
+        gender = gender_id[random.randint(0, 1)]
+
+        with getConnection() as connection:
+            print(connection)
+            insert_db_query = f"""INSERT INTO {TABLE_NAME} (name, dob, gender) VALUES (
+                                                    "{name}",
+                                                    "{dob}",
+                                                    "{gender}"
+                                                    );"""
+            try:
                 with connection.cursor() as cursor:
-                    cursor.execute(create_db_query2)
+                    cursor.execute(f"""USE {DATABASE_1};""")
                 connection.commit()
-            else:
-                break
+            except Error as err:
+                print(f"Ошибка MySQL при выборе базы данных {DATABASE_1}: {err}")
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(insert_db_query)
+                connection.commit()
+            except mysql.connector.Error as err:
+                print(f"Ошибка MySQL при добавлении записи в таблице {TABLE_NAME}: {err}")
+            print(f'Запись {i} создана.')
 
-    # Пункт 3 Вывод всех строк с уникальным значением ФИО+дата, отсортированным по ФИО , вывести ФИО, Дату рождения, пол, кол-во полных лет.
 
-        create_db_query3 = f"""SELECT DISTINCT name, year
-                                FROM {tab}
-                                ORDER BY name;"""
-        with connection.cursor() as cursor:
-            cursor.execute(create_db_query3)
-            result = cursor.fetchall()
-            for row in result:
-                print(row)
-        connection.commit()
+def generateFRecords():
+    names = ['vasya', 'petya', 'masha', 'dasha', 'ivan']
+    gender_id = ["M", "F"]
+    fSurnames = ['faronov', 'farisov', 'fedorov']
 
-    # вывести ФИО, Дату рождения, пол, кол-во полных лет.
-        import datetime
-        create_db_query3 = f"""SELECT name, year, gender
-                                FROM {tab};"""
-        with connection.cursor() as cursor:
-            cursor.execute(create_db_query3)
-            result = cursor.fetchall()
-            for row in result:
-                print(row)
-                a = datetime.date(year=int(row[1][:4]), month=int(row[1][5:7]), day=int(row[1][8:]))
-                b = datetime.date(year=2023, month=5, day=9)
-                print("Количество полных лет ", int((b - a).days / (365.2425)))
-        connection.commit()
+    for i in range(100):
+        name = fSurnames[random.randint(0, len(fSurnames) - 1)] + " " + names[random.randint(0, len(names) - 1)]
+        dob = str(random.randint(1900, 2022)) + "." + str(random.randint(1, 12)) + "." + str(random.randint(1, 28))
+        gender = gender_id[random.randint(0, 1)]
 
+        with getConnection() as connection:
+            print(connection)
+            insert_db_query = f"""INSERT INTO {TABLE_NAME} (name, dob, gender) VALUES (
+                                                    "{name}",
+                                                    "{dob}",
+                                                    "{gender}"
+                                                    );"""
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(f"""USE {DATABASE_1};""")
+                connection.commit()
+            except Error as err:
+                print(f"Ошибка MySQL при выборе базы данных {DATABASE_1}: {err}")
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute(insert_db_query)
+                connection.commit()
+            except mysql.connector.Error as err:
+                print(f"Ошибка MySQL при добавлении записи в таблице {TABLE_NAME}: {err}")
+            print(f'Запись {i} создана.')
+
+
+def selectFRecords():
+    # 5. Результат выборки из таблицы по критерию: пол мужской, ФИО  начинается с "F". Сделать замер времени выполнения.
+
+    with getConnection() as connection:
+        print(connection)
+        select_db_query_f = f"""SELECT * FROM {TABLE_NAME}
+                                  WHERE gender='M' and name LIKE 'f%';"""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"""USE {DATABASE_1};""")
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при выборе базы данных {DATABASE_1}: {err}")
+        start_time = datetime.now()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(select_db_query_f)
+                result = cursor.fetchall()
+                for row in result:
+                    print(row)
+        except mysql.connector.Error as err:
+            print(f"Ошибка MySQL при выводе записей из таблицы {TABLE_NAME}: {err}")
+        print(f'Выборка завершена. Время выполнения {datetime.now() - start_time}')
+
+
+def createIndex():
+    # 6. Создание индексов для уменьшения времени выполнения запроса.
+    with getConnection() as connection:
+        print(connection)
+        index_db_query = f"""ALTER TABLE {TABLE_NAME}
+                                ADD INDEX (name, gender);"""
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(f"""USE {DATABASE_1};""")
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при выборе базы данных {DATABASE_1}: {err}")
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(index_db_query)
+            connection.commit()
+        except Error as err:
+            print(f"Ошибка MySQL при создании индекса в таблице {TABLE_NAME}: {err}")
+        print('Индексы созданы.')
+
+
+# основная программа
+argv = sys.argv[1:]
+
+length = len(argv)
+if length == 0 or length > 4:
+    print('Неправильный формат параметров')
+    quit()
+
+param1 = argv[0]
+
+if param1 == "1":  # пункт 1 Создание базы данных и таблицы
+    createTable()
+
+elif param1 == "2":  # пункт 2 Создание записи
+
+    if len != 4:
+        print('Неправильный формат параметров')
+        quit()
+
+    your_name = argv[1]
+    birthday = argv[2]
+    your_gender = argv[3]
+
+    insertRecord(your_name, birthday, your_gender)
+
+elif param1 == "3":  # Пункт 3 Вывод всех строк с уникальным значением ФИО+дата, отсортированным по ФИО , вывести ФИО, Дату рождения, пол, кол-во полных лет.
+    selectRecords()
+
+    # TODO
+    print('---')
+
+elif param1 == "4":
     # 4. Заполнение автоматически 1000000 строк. Распределение пола в них должно быть относительно равномерным, начальной буквы ФИО также.
     # Заполнение автоматически  100 строк в которых пол мужской и ФИО начинается с "F".
 
-        from faker import Faker
-        fake = Faker()
-        for i in range(1000000):
-            row = fake.simple_profile()
-            your_name = row.get('name')
-            year_born = row.get('birthdate')
-            your_sex = row.get('sex')
-            create_db_query4 = f"""INSERT INTO {tab} (name, year, gender) 
-                                    VALUES (
-                                    "{your_name}",
-                                    '{year_born}',
-                                    "{your_sex}"
-                                    );"""
-            with connection.cursor() as cursor:
-                cursor.execute(create_db_query4)
-            connection.commit()
+    generateMillionRandomRecords()
 
-    # Заполнение автоматически  100 строк в которых пол мужской и ФИО начинается с "F"
+    # Заполнение автоматически 100 строк в которых пол мужской и ФИО начинается с "F"
 
-        number = 0
-        while number <= 100:
-            row = fake.simple_profile()
-            your_name = row.get('name')
-            if your_name[0] == 'F':
-                number += 1
-                year_born = row.get('birthdate')
-                your_sex = row.get('sex')
-                create_db_query4 = f"""INSERT INTO {tab} (name, year, gender) 
-                                        VALUES (
-                                        "{your_name}",
-                                        '{year_born}',
-                                        "{your_sex}"
-                                        );"""
-                with connection.cursor() as cursor:
-                    cursor.execute(create_db_query4)
-                connection.commit()
+    generateFRecords()
 
+elif param1 == "5":
     # 5.  Результат выборки из таблицы по критерию: пол мужской, ФИО  начинается с "F". Сделать замер времени выполнения.
 
-        create_db_query5 = f"""SELECT * FROM {tab}
-                                WHERE gender='M' and name LIKE 'F%';"""
-        with connection.cursor() as cursor:
-            cursor.execute(create_db_query5)
-            result = cursor.fetchall()
-            for row in result:
-                print(row)
-        connection.commit()
+    selectFRecords()
 
+elif param1 == "6":
     # 6. Произвести определенные манипуляции над базой данных для ускорения запроса из пункта 5. Убедиться, что время исполнения уменьшилось.
     # Объяснить смысл произведенных действий. Предоставить результаты замера до и после.
-
         # Чтобы уменьшить время выполнения запроса, добавим индексы для колонок "name" и "gender".
-        # Если такие таблицы не имеют индекса полей, то при запросах на выборку будут перебираться все строки подряд,
+        # Если такие таблицы не имеют индекса полей, то при запросах на выборку будут долго перебираться все строки подряд,
         # пока не будет найдено искомое значение.
+    createIndex()
+        # сделаем повторный замер времени выполнения запроса
+    selectFRecords()
 
-        create_db_query6 = f"""ALTER TABLE {tab}
-                                ADD INDEX (name, gender);"""
-        with connection.cursor() as cursor:
-            cursor.execute(create_db_query6)
-        connection.commit()
-        # результаты замера времени выполнения запроса до и после индексации представлены на скриншотах во вложении к письму
 
-    except Error as e:
-        print(e)
 
